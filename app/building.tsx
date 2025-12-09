@@ -1,39 +1,70 @@
+import Button from '@/components/Button';
+import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import {
-  StyleSheet,
-  View,
-  Text,
   FlatList,
-  StatusBar,
   ListRenderItemInfo,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Button from '@/components/Button';
 
 interface GridItem {
   id: string;
   title: string;
+  latitude: number;
+  longitude: number;
 }
 
-const DATA: GridItem[] = [
-  { id: '1', title: 'Eastside North' },
-  { id: '2', title: 'Eastside South' },
-  { id: '3', title: 'Nutwood' },
-  { id: '4', title: 'State College Structure' },
-  { id: '5', title: 'A & G' },
+const DATA = [
+  {
+    id: "1",
+    title: "Eastside North",
+    latitude: 33.881009299648376,
+    longitude: -117.88180150382846,
+  },
+  {
+    id: "2",
+    title: "Eastside South",
+    latitude: 33.880301186357116,
+    longitude: -117.88175590627496,
+  },
+  {
+    id: "3",
+    title: "Nutwood",
+    latitude: 33.879076621297024,
+    longitude: -117.88856209432365,
+  },
+  {
+    id: "4",
+    title: "State College Structure",
+    latitude: 33.883140284399985,
+    longitude: -117.88861163250014,
+  },
+  {
+    id: "5",
+    title: "A & G",
+    latitude: 33.8795,
+    longitude: -117.8859,
+  },
 ];
 
-const spacing = 6; 
 
-export default function building() { 
+const spacing = 6;
+
+export default function Building() {
   const router = useRouter();
 
   const handlePress = (item: GridItem) => {
-    console.log(`Navigating to result with item: ${item.title}`);
     router.push({
-      pathname: '/result',
-      params: { id: item.id, parking: item.title },
+      pathname: "/result",
+      params: {
+        buildingName: item.title,
+        buildingLat: String(item.latitude),
+        buildingLon: String(item.longitude),
+      },
     });
   };
 
@@ -45,12 +76,13 @@ export default function building() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Titan Rush'}} />
+      <Stack.Screen options={{ title: 'Titan Rush' }} />
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.container}>
-          <Text style={styles.heading}>Please choose a Parking Structure.</Text>
-          {/* <Text style={styles.instruction}>Click on an option below to begin calculation.</Text> */}
+          <Text style={styles.heading}>
+            Please choose a destination (building / structure).
+          </Text>
 
           <FlatList
             data={DATA}
@@ -68,11 +100,11 @@ export default function building() {
 
 const styles = StyleSheet.create({
   safeArea: {
-    flex: 1, 
+    flex: 1,
     backgroundColor: '#f4f4f5',
   },
   container: {
-    flex: 1, 
+    flex: 1,
     paddingTop: 16,
   },
   heading: {
@@ -82,19 +114,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing * 2,
     marginBottom: 16,
   },
-  instruction:{
-    fontSize: 14,
-    fontWeight: '400',
-    paddingHorizontal: spacing * 2,
-    paddingVertical: spacing * 2,
-  },
   flatList: {
     flex: 1,
     paddingTop: 18,
   },
   itemContainer: {
-    flex: 1, 
-    margin: spacing, 
+    flex: 1,
+    margin: spacing,
   },
 });
-
