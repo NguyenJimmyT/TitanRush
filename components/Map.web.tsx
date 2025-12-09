@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 
 /**
@@ -6,16 +6,19 @@ import { StyleSheet, View, Text } from 'react-native';
  * This file is loaded AUTOMATICALLY by Expo when running on the web.
  * * Since we DO NOT import 'react-native-maps' here, the web build won't crash.
  */
-export default function Map(props: any) {
-  return (
+const Maps = forwardRef((props: any, ref: any) => {
+  return(
     <View style={styles.container}>
       <Text style={styles.text}>Maps are currently supported on Mobile only.</Text>
-      <Text style={styles.subText}>(Implement a web-friendly map here using leaflet or google-maps-react)</Text>
+      <Text style={styles.subText}>Web-based maps coming soon.</Text>
     </View>
-  );
-}
+  )
+})
+
+Maps.displayName = 'Maps'
 
 export const Marker = (props: any) => null
+export const Polyline = (props: any) => null
 
 const styles = StyleSheet.create({
   container: {
@@ -37,3 +40,5 @@ const styles = StyleSheet.create({
     color: '#666',
   },
 });
+
+export default Maps

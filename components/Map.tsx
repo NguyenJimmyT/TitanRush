@@ -1,22 +1,31 @@
-import React from "react";
-import { ViewStyle,StyleSheet } from "react-native";
-import MapView, { MapViewProps, Marker as NMarker, PROVIDER_DEFAULT } from "react-native-maps";
+import React, {forwardRef} from "react";
+import { ViewStyle, StyleSheet, Text, Platform } from "react-native";
+import MapView, { MapViewProps, Marker as NMarker, Circle as NCircle , Polyline as NPolyline, PROVIDER_DEFAULT } from "react-native-maps";
+import * as Location from 'expo-location'
+import { AppleMaps, GoogleMaps } from 'expo-maps'
 
 interface MapProps extends MapViewProps {
     style?: ViewStyle
 }
 
-export default function Maps(props: MapProps) {
-    return(
+const Maps = forwardRef<MapView, MapProps>((props, ref) => {
+    return( 
         <MapView
-        {...props}
-        style={[props.style, styles.map]}>
+            ref={ref}
+            {...props}
+            style={[styles.map, props.style]}
+        >
             {props.children}
         </MapView>
     )
-}
+})
+
+Maps.displayName = 'Maps'
+
 
 export const Marker = NMarker;
+export const Polyline = NPolyline
+export const Circle = NCircle
 
 const styles=StyleSheet.create({
     map: {
@@ -25,3 +34,5 @@ const styles=StyleSheet.create({
         height: '100%',
     },
 })
+
+export default Maps
