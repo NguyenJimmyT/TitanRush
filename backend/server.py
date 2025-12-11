@@ -4,6 +4,8 @@ import numpy as np
 import requests
 import os
 import json
+import pytz
+import math
 from io import StringIO
 from datetime import datetime, timedelta
 from catboost import CatBoostRegressor
@@ -19,105 +21,6 @@ class routing(BaseModel):
     lat: float
     long: float
     dest: str
-
-
-@app.get("/currectTrends")
-async def filter_csv():
-    response = requests.get(URL)
-    parse = pd.read_csv(StringIO(response.text))
-    start = pd.Timestamp("2025-01-21 00:00:00")
-    end_before = pd.Timestamp("2025-05-22 23:59:59")
-    skip = pd.Timestamp("2025-08-01 00:00:00")
-    skip_end = pd.Timestamp.now()
-
-    parse["lastUpdated"] = parse["lastUpdated"].str.strip()
-
-    parse["datetime"] = pd.to_datetime(parse["lastUpdated"], format="mixed")
-
-    prev_sem = (parse["datetime"] >= start) & (parse["datetime"] <= end_before)
-    current_sem = (parse["datetime"] >= skip) & (parse["datetime"] <= skip_end)
-
-    filtered = parse[prev_sem | current_sem]
-
-    filtered.to_csv("Spring&Fall2025.csv", index=False)
-    return {"message": "filtered CSV created"}
-
-@app.get("/catModel")
-async def createModel():
-    dataset = pd.read_csv("Spring&Fall2025.csv")
-    
-    dataset['structure'] = dataset['structure'].str.title()
-    dataset['level'] = dataset['level'].str.title()
-
-    dataset = dataset.rename(columns={'timeScrape': 'time', 'datetime': 'date'})
-    dataset = dataset[dataset['structure'] != 'Fullerton Free Church']
-    dataset['date'] = pd.to_datetime(dataset['date'], errors="coerce")
-    dataset['date'] = dataset['date'].dt.tz_localize('US/Pacific')
-    dataset['time'] = dataset['date'].dt.strftime('%H:%M:%S')
-    dataset = dataset.drop_duplicates(subset=['date', 'level'])
-    dataset['available'] = dataset['available'].replace('Full', 0).astype(int)
-    semester_start = pd.Timestamp("2025-08-23", tz="US/Pacific")
-    dataset['day_of_week'] = dataset['date'].dt.day_name()
-    dataset['days_since_start'] = (dataset['date'] - semester_start).dt.days
-    dataset['semester_week'] = (dataset['days_since_start'] // 7) + 1
-    dataset['hour'] = dataset['date'].dt.hour
-    dataset['minute'] = dataset['date'].dt.minute
-    dataset['half_hour'] = dataset['hour'] + (dataset['minute'] >= 30) * 0.5
-    dataset['total'] = dataset['total'].replace(120, 220)
-    dataset['current_struc_avail'] = dataset.groupby(['structure', 'date', 'time'])['available'].transform('sum')
-    dataset['total_struc_avail'] = dataset.groupby(['structure', 'date', 'time'])['total'].transform('sum')
-    dataset = dataset.sort_values(by=['date', 'time', 'level']).reset_index(drop=True)
-    dataset['percentage_full'] = (dataset['total_struc_avail'] - dataset['current_struc_avail']) / dataset['total_struc_avail']
-
-    cat_feat = ['structure', 'day_of_week']
-    num_feats = ['semester_week', 'half_hour']
-    feat_cols = cat_feat + num_feats
-
-    model = CatBoostRegressor(
-        depth=6,
-        learning_rate=0.05,
-        iterations=400,
-        loss_function="RMSE",
-        random_seed=42,
-        verbose=False
-    )
-    
-    X_train = dataset[feat_cols]
-    y_train = dataset['current_struc_avail']
-    
-    model.fit(X_train, y_train, cat_features=[0, 1])
-
-    structure = dataset['structure'].unique()
-    today = pd.Timestamp.now().date()
-
-    this_week = today - timedelta(days=today.weekday() + 1)
-    forecast_day = [this_week + timedelta(days=i) for i in range(14)]
-
-    overall_forecast = {}
-    for day in forecast_day:
-        curr = pd.Timestamp(day).tz_localize('US/Pacific')
-        dow = curr.day_name()
-        sweek = ((curr - semester_start).days // 7) + 1 
-        time = pd.date_range("00:00", "23:55", freq="5min").time
-        rows = []
-        for i in time:
-            hh = i.hour + (i.minute >= 30) * 0.5
-            for s in structure:
-                rows.append({
-                    "structure": s,
-                    "day_of_week": dow,
-                    "semester_week": sweek,
-                    "half_hour": hh,
-                    "time": i.strftime("%H:%M:%S")
-                })
-        pred = pd.DataFrame(rows)
-        pred["avail"] = model.predict(pred[feat_cols]).round().astype(int)
-        pivot = pred.pivot(index="time", columns="structure", values="avail")
-        
-        overall_forecast[str(day)] = pivot.to_dict(orient="index")
-    with open("forecast.json", "w") as f:
-        json.dump(overall_forecast, f, indent=4)
-    return {"message": "forecast CSV created"}
 
 @app.post("/estimate")    
 async def estimate_route(req: routing):
@@ -143,7 +46,28 @@ async def estimate_route(req: routing):
     mins = (total_sec % 3600) // 60
     secs = total_sec % 60
 
+    response = requests.get(URL)
+    parkingEstimate = pd.read_csv(StringIO(response.text))
+
+    max_avail = {"Nutwood": 2484, "StateCollege": 1373, "EastsideNorth": 1880, "EastsideSouth": 1341, "LotA&G": 2104}
+    time_parking = {"Nutwood": 20, "StateCollege": 18, "EastsideNorth": 20, "EastsideSouth": 18, "LotA&G": 14}
+    search_struc = {"Nutwood": "Nutwood Structure", "StateCollege": "State College Structure", "EastsideNorth": "Eastside North", "EastsideSouth": "Eastside South", "LotA&G": "LotA&G"}
+    
+    curr_pst = datetime.now(pytz.timezone('US/Pacific'))
+    curr_pst += timedelta(minutes=mins)
+    temp_time = curr_pst.hour * 60 + curr_pst.minute
+    roundfive = round(temp_time / 5) * 5
+    curr_pst = curr_pst.replace(hour=roundfive//60, minute=roundfive%60, second=0, microsecond=0)
+    curr_time = curr_pst.strftime('%H:%M:%S')
+    curr_date = curr_pst.strftime('%Y-%m-%d')
+
+    pred_avail = parkingEstimate[curr_date][curr_time][search_struc[req.dest]]
+    spots_taken = max_avail[req.dest] - pred_avail
+    percentage = spots_taken / max_avail[req.dest]
+    estimate_time = math.ceil(time_parking[req.dest] * percentage)
+
     return {
+        "total_time_parking": estimate_time,
         "distance": result["lengthInMeters"]*0.0006213712,
         "travel_time_hr": hrs,
         "travel_time_minutes": mins,
