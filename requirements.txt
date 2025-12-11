@@ -1,0 +1,6 @@
+fastapi
+requests
+pytz
+pydantic
+python-dotenv
+unicorn[standard]
