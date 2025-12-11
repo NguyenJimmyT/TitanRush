@@ -11,18 +11,35 @@ type Coordinate = {
     longitude: number;
 }
 
-const dummyJSON = JimmySON
-
 export default function Result() {
     const { 
-        parkingId,
         parkingName,
-        buildingId,
         buildingName,
         desiredTime,
         userLat,
-        userLong
+        userLong,
+        route,
+        walkHours,
+        walkMins,
+        walkSecs
     } = useLocalSearchParams()
+
+    const walkTimes = React.useMemo(() => ({
+        h: Number(Array.isArray(walkHours) ? walkHours[0] : walkHours) || 0,
+        m: Number(Array.isArray(walkMins) ? walkMins[0] : walkMins) || 0,
+        s: Number(Array.isArray(walkSecs) ? walkSecs[0] : walkSecs) || 0
+    }), [walkHours, walkMins, walkSecs])
+
+    const walkCoords = React.useMemo(() => {
+        if (!route) return [];
+        try{
+            const jsonString = Array.isArray(route) ? route[0] : route;
+            return JSON.parse(jsonString)
+        } catch (e) {
+            console.error("Failed to parse walk route.",e);
+            return[];
+        }
+    }, [route])
 
     const insets = useSafeAreaInsets();
 
@@ -32,9 +49,6 @@ export default function Result() {
     const [isMapReady, setIsMapReady] = useState(false);
 
     const [leaveTime, setLeaveTime] = useState('');
-
-    const [route, setRoute] = useState()
-    const [walk, setWalk] = useState<{building_name: string, route: any[], total_distance_m: number, total_distance_miles: number, walk_time_hours: number, walk_time_minutes: number, walk_time_seconds: number} | null>(null)
 
     const mapRef = useRef<any>(null);
 
@@ -78,65 +92,17 @@ export default function Result() {
 
                 console.log(`Fetching route to ${parkingName} `)
 
-                const routePromise = new Promise<{distance: any, travel_time_hr: number, travel_time_minutes: number, travel_time_sec: number, route: any}>(async (resolve,reject) => {
-                    /* 
-                    try {
-                        const response = await fetch('jimmyAPI', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                dest: parkingId,
-                                lat: userLat,
-                                long: userLong,
-                            })
-                        });
-                        const data = await response.json();
-                        resolve(data);
-                    } catch(e) { reject(e); }
-                    */
-
-                    await new Promise(r => setTimeout(r,1000));
-                    resolve(JimmySON)
-                });
-
-                const buildingPromise = new Promise<{building_name: string, route: any[], total_distance_m: number, total_distance_miles: number, walk_time_hours: number, walk_time_minutes: number, walk_time_seconds: number}>(async (resolve, reject) => {
-                    /*
-                    try {
-                        const response = await fetch('JulienAPI', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                parking_name: parkingId,
-                                building_name: buildingId
-                            })
-                        });
-                        const data = await response.json();
-                        resolve(data);
-                    } catch(e) { reject(e); }
-                    */
-
-                    await new Promise(r => setTimeout(r,800));
-                    resolve(JulienSON)
-                })
-
-                const [routeData, buildingData] = await Promise.all([
-                    routePromise,
-                    buildingPromise
-                ])
-
-                setWalk(buildingData)
-
                 if(desiredTime) {
                     const calculatedTime = calculateLeaveTime(
                         desiredTime as string,
-                        (routeData.travel_time_hr + buildingData.walk_time_hours),
-                        (routeData.travel_time_minutes + buildingData.walk_time_minutes),
-                        (routeData.travel_time_sec + buildingData.walk_time_seconds)
+                        walkTimes.h,
+                        walkTimes.m,
+                        walkTimes.s
                     );
                     setLeaveTime(calculatedTime)
                 }
 
-                const polyLineCoords = routeData.route.routes[0].legs[0].points
+                const polyLineCoords = walkCoords
 
                 const safeData: Coordinate[] = polyLineCoords.map((point: { latitude: any; longitude: any; }) => ({
                     latitude: Number(point.latitude),
@@ -153,7 +119,7 @@ export default function Result() {
         };
 
         fetchRoute();
-    }, [parkingName, buildingName]);
+    }, [parkingName, buildingName, desiredTime, walkCoords, walkTimes.h, walkTimes.m, walkTimes.s]);
 
     useEffect(() => {
         if (routeCoords.length > 0 && mapRef.current && isMapReady){
@@ -178,26 +144,9 @@ export default function Result() {
         longitudeDelta: 0.02,
     } : undefined;
 
-    const handleWalkNav = () => {
-        router.push({
-            pathname: '/walkResult',
-            params: {
-                parkingName: parkingName,
-                buildingName: buildingName,
-                desiredTime: desiredTime,
-                userLat: userLat,
-                userLong: userLong,
-                route: JSON.stringify(walk?.route),
-                walkHours: walk?.walk_time_hours,
-                walkMins: walk?.walk_time_minutes,
-                walkSecs: walk?.walk_time_seconds
-            }
-        })
-    }
-
     return(
         <>
-            <Stack.Screen options={{ title: `Route to ${parkingName}`, headerTintColor:'white',headerTitleAlign: 'center' ,headerStyle:{ backgroundColor: '#00244e'},headerTitleStyle:{color:'white'} }}/>
+            <Stack.Screen options={{ title: `Route to ${buildingName}`, headerTintColor:'white',headerTitleAlign: 'center' ,headerStyle:{ backgroundColor: '#00244e'},headerTitleStyle:{color:'white'} }}/>
 
             {isLoading && (
                 <View style={styles.centerContainer}>
@@ -224,7 +173,7 @@ export default function Result() {
                         >
                             {routeCoords.length > 0 && (
                             <Polyline 
-                                coordinates={routeCoords}
+                                coordinates={walkCoords}
                                 strokeColor="#FF7900"
                                 strokeWidth={4}
                             />
@@ -254,14 +203,7 @@ export default function Result() {
                     </View>
 
                     <View style={[styles.footerContainer, {paddingBottom: Math.max(insets.bottom, 20) }]}>
-                        <Text style={styles.headerLabel}>
-                            Estimated Parking time:
-                        </Text>
-                        <Text style={styles.headerTime}>{'--:--'}</Text>
-
-                        <TouchableOpacity style={styles.walkButton} onPress={handleWalkNav}>
-                            <Text style={styles.walkButtonText}>Navigate to Class</Text>
-                        </TouchableOpacity>
+                        
                     </View>
                 </>
             )}

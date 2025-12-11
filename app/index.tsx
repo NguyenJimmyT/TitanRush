@@ -1,223 +1,215 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   FlatList,
   ListRenderItemInfo,
+  Alert,
   Modal,
   TouchableOpacity,
   Platform,
-  TouchableWithoutFeedback
+  Pressable,
+  ActivityIndicator,
+  Linking
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '@/components/Button';
+import * as Location from 'expo-location'
 
 interface GridItem {
   id: string;
   title: string;
+  searchPattern: string;
 }
 
 const PARKING_DATA: GridItem[] = [
-  { id: '1', title: 'Eastside North' },
-  { id: '2', title: 'Eastside South' },
-  { id: '3', title: 'Nutwood' },
-  { id: '4', title: 'State College Structure' },
-  { id: '5', title: 'Lot A & G' },
+  { id: 'eastsideNorth', title: 'Eastside North', searchPattern: 'GridView_All_Label_AllSpots_2' },
+  { id: 'eastsideSouth', title: 'Eastside South', searchPattern: 'GridView_All_Label_AllSpots_3' },
+  { id: 'nutwood', title: 'Nutwood', searchPattern: 'GridView_All_Label_AllSpots_0' },
+  { id: 'stateCollege', title: 'State College Structure', searchPattern: 'GridView_All_Label_AllSpots_1' },
+  { id: 'lotAG', title: 'Lot A & G', searchPattern: 'GridView_All_Label_AllSpots_4' },
 ];
 
-const BUILDING_DATA: GridItem[] = [
-  { id: 'b1', title: 'McCarthy Hall'},
-  { id: 'b2', title: 'Pollak Library'},
-  { id: 'b3', title: 'Titan Student Union'},
-  { id: 'b4', title: 'Kinesiology'},
-  { id: 'b5', title: 'Engineering & Computer Science'},
-  { id: 'b6', title: 'Education Classroom'},
-  { id: 'b7', title: 'College of Business'},
-  { id: 'b8', title: 'Langsdorf Hall'},
-  { id: 'b9', title: 'Dan Black Hall'},
-  { id: 'b10', title: 'Mihaylo Hall'},
-  { id: 'b11', title: 'Humanities'},
-  { id: 'b12', title: 'Gordon Hall'}
-]
+const spacing = 6;
 
-const spacing = 6; 
-
-export default function IndexScreen() { 
+export default function IndexScreen() {
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<'parking' | 'buildings'>('parking')
+  const [location, setLocation] = useState<Location.LocationObject | null>(null)
+  const [locationError, setLocationError] = useState<string | null>(null)
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true)
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<GridItem | null>(null)
+  const [parkingSpots, setParkingSpots] = useState<Record<string, number>>({});
+  const [isLoadingParking, setLoadingParking] = useState(true);
 
-  const [hour, setHour] = useState(9);
-  const [minute,setMinute] = useState(0);
-  const [period, setPeriod] = useState('AM');
+  useEffect(()=>{
+    requestLocation();
+    fetchParkingCounts();
+  }, [])
 
-  const currentData = activeTab === 'parking' ? PARKING_DATA : BUILDING_DATA;
-  const headerText = activeTab === 'parking' ? 'Please choose a Parking Structure' : 'Please choose a Building';
+  const fetchParkingCounts = async () => {
+    setLoadingParking(true);
+    try{
+      const response = await fetch('https://parking.fullerton.edu/parkinglotcounts/mobile.aspx');
+      const html = await response.text();
 
-  const incrementHour = () => setHour(h => h === 12 ? 1 : h + 1);
-  const decrementHour = () => setHour(h => h === 1 ? 12 : h - 1);
+      const counts: Record<string, number> = {};
 
-  const incrementMin = () => setMinute(m => m >= 55 ? 0 : m + 5);
-  const decrementMin = () => setMinute(m => m <= 0 ? 55 : m - 5);
-
-  const togglePeriod = () => setPeriod(p => p === 'AM' ? 'PM' : 'AM');
-
-  const formatMin = (m: number) => m.toString().padStart(2, '0');
-
-  const handlePress = (item: GridItem) => {
-    setSelectedItem(item);
-    const now = new Date();
-    let currentHour = now.getHours();
-    const isPm = currentHour >= 12;
-    if (currentHour > 12) currentHour -= 12;
-    if (currentHour === 0) currentHour = 12;
-
-    setHour(currentHour);
-    setMinute(Math.ceil(now.getMinutes() / 5) * 5 >= 60 ? 0 : Math.ceil(now.getMinutes() / 5) * 5);
-    setPeriod(isPm ? 'PM' : 'AM');
-
-    setModalVisible(true);
-  };
-
-  const handleConfirmTime = () => {
-    setModalVisible(false);
-
-    if (selectedItem) {
-      const timeString = `${hour}:${formatMin(minute)} ${period}`
-      console.log(`Navigating to result with item: ${selectedItem.title} at ${timeString}`);
-
-      router.push({
-        pathname: '/result',
-        params: {
-          id: selectedItem.id,
-          title: selectedItem.title,
-          desiredTime: timeString,
-          selectionType: activeTab
+      PARKING_DATA.forEach(item => {
+        const regex = new RegExp(`id="${item.searchPattern}">(\\d+)</span>`);
+        const match = html.match(regex);
+        if (match && match[1]){
+          counts[item.id] = parseInt(match[1], 10);
         }
       });
+
+      setParkingSpots(counts);
+    } catch (e) {
+      console.log("Failed to fetch parking spot availability: ",e)
+    } finally {
+      setLoadingParking(false);
+    }
+  }
+  
+  const requestLocation = async () => {
+    setIsLoadingLocation(true);
+    setLocationError(null)
+
+    try{
+      console.log("Requesting Location Permissions...")
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      console.log("Permission Status:",status)
+
+      if (status !== 'granted'){
+        setLocationError('Permission denied. Please enable in settings.');
+        setIsLoadingLocation(false);
+        return
       }
+
+      console.log("Getting current position...");
+      const locationResult = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      setLocation(locationResult);
+      console.log("... Done!")
+    } catch (e: any) {
+      console.error("Location Error:", e);
+      setLocationError(e.message || 'Error fetching location');
+    } finally {
+      setIsLoadingLocation(false)
+    }
   }
 
-  const renderGridItem = ({ item }: ListRenderItemInfo<GridItem>) => (
-    <View style={styles.itemContainer}>
-      <Button title={item.title} onPress={() => handlePress(item)} />
-    </View>
-  );
+  const handlePress = (item: GridItem) => {
+    if (isLoadingLocation) {
+      Alert.alert("Please wait", "Determining your location...");
+      return;
+    }
+
+    router.push({
+      pathname: '/building',
+      params: {
+        parkingId: item.id,
+        parkingName: item.title,
+        userLat: location?.coords.latitude,
+        userLong: location?.coords.longitude,
+      },
+    });
+  };
+
+  const openSettings = () => {
+    if (Platform.OS === 'ios') {
+      Linking.openURL('app-settings:');
+    } else {
+      Linking.openSettings();
+    }
+  };
+
+  const renderGridItem = ({ item }: ListRenderItemInfo<GridItem>) => {
+    const count = parkingSpots[item.id]
+    
+    return(
+      <View style={styles.itemContainer}>
+        <Button title={item.title} onPress={() => handlePress(item)} />
+        {/* TODO: Possibly add live data on available spaces */}
+        <View style={{marginTop: 6, alignItems: 'center',justifyContent:'center',height:20}}>
+          {isLoadingParking ? (
+            <ActivityIndicator size="small" color='#00244e' />
+          ) : count !== undefined ? (
+            <Text style={{fontSize: 12}}>
+              <Text style={{ fontWeight: '700', color: count > 0 ? '#16a34a' : '#dc2626' }}>
+                {count}
+              </Text>
+              <Text style={{ color: '#71717a' }}> spaces available.</Text>
+            </Text>
+          ) : (
+            <Text style={{fontSize: 12, color: '#a1a1aa', fontStyle: 'italic'}}>Offline</Text>
+          )}
+        </View>
+      </View>
+    )
+  };
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Titan Rush', headerStyle:{ backgroundColor: '#00244e'},headerTitleStyle:{color:'white'}}} />
+      <Stack.Screen
+        options={{
+          title: 'Titan Rush',
+          headerStyle: {
+            backgroundColor: '#00244e'
+          },
+          headerTitleStyle: { color: 'white' },
+          headerTintColor:'white',
+          headerTitleAlign: 'center',
+        }}
+      />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
-          
+
           <View style={styles.contentContainer}>
-            <Text style={styles.heading}>{headerText}</Text>
-            
-            <FlatList
-              data={currentData}
-              renderItem={renderGridItem}
-              keyExtractor={(item: GridItem) => item.id}
-              numColumns={2}
-              style={styles.flatList}
-              contentContainerStyle={{ padding: spacing }}
-              showsVerticalScrollIndicator={false}
-            />
+            {isLoadingLocation && (
+              <View style={styles.locationStatus}>
+                <ActivityIndicator size={'small'} color='#FF7900' />
+                <Text>Getting current location...</Text>
+              </View>
+            )}
+            {!isLoadingLocation && !locationError && (
+              <View style={{flex: 1}}>
+                <Text style={styles.heading}>Select a desired parking structure.</Text>
+
+                <FlatList
+                  data={PARKING_DATA}
+                  renderItem={renderGridItem}
+                  keyExtractor={(item: GridItem) => item.id}
+                  numColumns={2}
+                  style={styles.flatList}
+                  contentContainerStyle={{ padding: spacing }}
+                  showsVerticalScrollIndicator={false}
+                />
+              </View>
+            )}
+            {!isLoadingLocation && locationError && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>
+                  {locationError}
+                </Text>
+
+                {locationError.toLowerCase().includes('denied') && (
+                  <TouchableOpacity onPress={openSettings} style={styles.settingsButton}>
+                    <Text style={styles.settingsText}> Open Settings</Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity onPress={requestLocation} style={styles.retryButton}>
+                  <Text style={styles.retryText}>Try Again</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
-          {/* <Text style={styles.instruction}>Click on an option below to begin calculation.</Text> */}
-
-          <View style={styles.tabBar}>
-            <TouchableOpacity 
-              onPress={() => setActiveTab('parking')} 
-              style={[styles.tab, activeTab === 'parking' && styles.activeTab]}
-            >
-              <Text style={[styles.tabText, activeTab === 'parking' && styles.activeTabText]}>
-                Parking
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setActiveTab('buildings')}
-              style={[styles.tab, activeTab === 'buildings' && styles.activeTab]}
-            >
-              <Text style={[styles.tabText, activeTab === 'buildings' && styles.activeTabText]}>
-                Buildings
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <Modal
-            animationType='fade'
-            transparent={true}
-            visible={modalVisible}
-            onRequestClose={() => setModalVisible(false)}
-          >
-
-            <TouchableOpacity onPress={() => setModalVisible(false)} activeOpacity={1} style={styles.modalOverlay}>
-
-              <TouchableWithoutFeedback>
-
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Arrival Time</Text>
-                  <Text style={styles.modalSubtitle}>
-                    Select your desired arrival time for {selectedItem?.title}.
-                  </Text>
-
-                  <View style={styles.pickerContainer}>
-
-                    <View style={styles.pickerColumn}>
-                      <TouchableOpacity onPress={incrementHour} style={styles.arrowButton}>
-                        <Text style={styles.arrowText}>▲</Text>
-                      </TouchableOpacity>
-                      <Text style={styles.timeText}>{hour}</Text>
-                      <TouchableOpacity onPress={decrementHour} style={styles.arrowButton}>
-                        <Text style={styles.arrowText}>▼</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    <Text style={styles.colon}>:</Text>
-
-                    <View style={styles.pickerColumn}>
-                      <TouchableOpacity onPress={incrementMin} style={styles.arrowButton}>
-                        <Text style={styles.arrowText}>▲</Text>
-                      </TouchableOpacity>
-                      <Text style={styles.timeText}>{formatMin(minute)}</Text>
-                      <TouchableOpacity onPress={decrementMin} style={styles.arrowButton}>
-                        <Text style={styles.arrowText}>▼</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={[styles.pickerColumn, styles.periodColumn]}>
-                      <TouchableOpacity onPress={togglePeriod} style={styles.periodButton}>
-                        <Text style={[styles.periodText, period === 'AM' && styles.periodActive]}>AM</Text>
-                      </TouchableOpacity>
-                      <View style={styles.periodDivider} />
-                      <TouchableOpacity onPress={togglePeriod} style={styles.periodButton}>
-                        <Text style={[styles.periodText, period === 'PM' && styles.periodActive]}>PM</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                  </View>
-
-                  <View style={styles.modalButtons}>
-                    <TouchableOpacity onPress={() => setModalVisible(false)} style={[styles.modalButton, styles.cancelButton]}>
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={handleConfirmTime} style={[styles.modalButton, styles.confirmButton]}>
-                      <Text style={styles.confirmButtonText}>Confirm</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                </View>
-                
-              </TouchableWithoutFeedback>
-            </TouchableOpacity>
-
-          </Modal>
         </View>
       </SafeAreaView>
     </>
@@ -226,11 +218,11 @@ export default function IndexScreen() {
 
 const styles = StyleSheet.create({
   safeArea: {
-    flex: 1, 
+    flex: 1,
     backgroundColor: '#f4f4f5',
   },
   container: {
-    flex: 1, 
+    flex: 1,
     paddingTop: 16,
   },
   contentContainer: {
@@ -244,7 +236,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing * 2,
     marginBottom: 16,
   },
-  instruction:{
+  instruction: {
     fontSize: 14,
     fontWeight: '400',
     paddingHorizontal: spacing * 2,
@@ -255,11 +247,55 @@ const styles = StyleSheet.create({
     paddingTop: 18,
   },
   itemContainer: {
-    flex: 1, 
-    margin: spacing, 
+    flex: 1,
+    margin: spacing,
+  },
+  locationStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing * 2,
+    gap: 8,
+  },
+  locationText: {
+    fontSize: 14,
+    color: '#717171a',
+    fontWeight: '500',
+    paddingHorizontal: spacing * 2,
+  },
+  errorContainer:{
+    flex:1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#ef4444',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  settingsButton: {
+    backgroundColor: '#00244e',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  settingsText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  retryButton: {
+    paddingVertical: 12,
+  },
+  retryText: {
+    color: '#00244e',
+    fontWeight: '500',
+    fontSize: 16
   },
 
-  tabBar:{
+  tabBar: {
     flexDirection: 'row',
     backgroundColor: '#00244e',
     borderTopWidth: 1,
@@ -268,14 +304,14 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     elevation: 10,
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: -2},
+    shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
-    justifyContent:'center',
+    justifyContent: 'center',
     paddingVertical: 8,
   },
   activeTab: {
@@ -289,7 +325,7 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: '#ff7900',
     fontWeight: '700',
-    borderBottomWidth:2,
+    borderBottomWidth: 2,
     borderBottomColor: '#2563eb',
     paddingBottom: 2,
   },

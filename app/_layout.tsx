@@ -3,7 +3,7 @@ import * as SplashScreen from 'expo-splash-screen'
 
 SplashScreen.setOptions({
   duration: 10000,
-  fade: true
+  fade: false
 })
 
 export default function RootLayout() {
