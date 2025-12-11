@@ -11,7 +11,6 @@ type Coordinate = {
     longitude: number;
 }
 
-const dummyJSON = JimmySON
 
 export default function Result() {
     const { 
@@ -33,7 +32,7 @@ export default function Result() {
 
     const [leaveTime, setLeaveTime] = useState('');
 
-    const [route, setRoute] = useState()
+    const [route, setRoute] = useState<{total_time_parking: any,distance: any, travel_time_hr: number, travel_time_minutes: number, travel_time_sec: number, route: any}>(null)
     const [walk, setWalk] = useState<{building_name: string, route: any[], total_distance_m: number, total_distance_miles: number, walk_time_hours: number, walk_time_minutes: number, walk_time_seconds: number} | null>(null)
 
     const mapRef = useRef<any>(null);
@@ -78,31 +77,29 @@ export default function Result() {
 
                 console.log(`Fetching route to ${parkingName} `)
 
-                const routePromise = new Promise<{distance: any, travel_time_hr: number, travel_time_minutes: number, travel_time_sec: number, route: any}>(async (resolve,reject) => {
-                    /* 
+                const routePromise = new Promise<{total_time_parking: any,distance: any, travel_time_hr: number, travel_time_minutes: number, travel_time_sec: number, route: any}>(async (resolve,reject) => {
+                    
                     try {
-                        const response = await fetch('jimmyAPI', {
+                        const response = await fetch('https://titanrush.onrender.com/estimate', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                dest: parkingId,
-                                lat: userLat,
-                                long: userLong,
+                                lat: Number(userLat),
+                                long: Number(userLong),
+                                dest: parkingId
                             })
                         });
                         const data = await response.json();
                         resolve(data);
                     } catch(e) { reject(e); }
-                    */
+                    
 
-                    await new Promise(r => setTimeout(r,1000));
-                    resolve(JimmySON)
                 });
 
                 const buildingPromise = new Promise<{building_name: string, route: any[], total_distance_m: number, total_distance_miles: number, walk_time_hours: number, walk_time_minutes: number, walk_time_seconds: number}>(async (resolve, reject) => {
-                    /*
+                    
                     try {
-                        const response = await fetch('JulienAPI', {
+                        const response = await fetch("https://titanrush.onrender.com/walk-route", {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -113,17 +110,15 @@ export default function Result() {
                         const data = await response.json();
                         resolve(data);
                     } catch(e) { reject(e); }
-                    */
+                    
 
-                    await new Promise(r => setTimeout(r,800));
-                    resolve(JulienSON)
                 })
 
                 const [routeData, buildingData] = await Promise.all([
                     routePromise,
                     buildingPromise
                 ])
-
+                setRoute(routeData)
                 setWalk(buildingData)
 
                 if(desiredTime) {
@@ -145,7 +140,7 @@ export default function Result() {
 
                 setRouteCoords(safeData);
             } catch (err) {
-                console.error(err)
+                console.error("Failed: ",err)
                 setError("Failed to load route.");
             } finally {
                 setIsLoading(false)
@@ -153,7 +148,7 @@ export default function Result() {
         };
 
         fetchRoute();
-    }, [parkingName, buildingName]);
+    }, [parkingName, buildingName, desiredTime, userLat, userLong, parkingId, buildingId]);
 
     useEffect(() => {
         if (routeCoords.length > 0 && mapRef.current && isMapReady){
@@ -257,7 +252,7 @@ export default function Result() {
                         <Text style={styles.headerLabel}>
                             Estimated Parking time:
                         </Text>
-                        <Text style={styles.headerTime}>{'--:--'}</Text>
+                        <Text style={styles.headerTime}>{route.total_time_parking+" mins" ||'--:--'}</Text>
 
                         <TouchableOpacity style={styles.walkButton} onPress={handleWalkNav}>
                             <Text style={styles.walkButtonText}>Navigate to Class</Text>
