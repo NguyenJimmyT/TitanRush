@@ -3,4 +3,4 @@ requests
 pytz
 pydantic
 python-dotenv
-unicorn
+uvicorn
