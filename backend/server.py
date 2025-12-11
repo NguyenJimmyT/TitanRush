@@ -1,21 +1,17 @@
 from fastapi import FastAPI
-import pandas as pd
-import numpy as np
 import requests
 import os
 import json
 import pytz
 import math
-from io import StringIO
 from datetime import datetime, timedelta
-from catboost import CatBoostRegressor
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-URL = "https://raw.githubusercontent.com/NguyenJimmyT/TitanRush/refs/heads/main/backend/forecast.json"
-app = FastAPI()
-API_KEY = os.getenv("API_KEY")
 load_dotenv()
+API_KEY = os.getenv("API_KEY")
+app = FastAPI()
+URL = "https://raw.githubusercontent.com/NguyenJimmyT/TitanRush/refs/heads/main/backend/forecast.json"
 
 class routing(BaseModel):
     lat: float
@@ -35,7 +31,6 @@ async def estimate_route(req: routing):
     )
 
     response = requests.get(api_req)
-
     if response.status_code != 200:
         return {"error": response.text}
 
