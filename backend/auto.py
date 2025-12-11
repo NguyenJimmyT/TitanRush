@@ -1,13 +1,12 @@
 import pandas as pd
 import requests
-import os
 import json
 from io import StringIO
 from datetime import datetime, timedelta
 from catboost import CatBoostRegressor
 
 URL_SCRAPE = "https://raw.githubusercontent.com/NguyenJimmyT/webscraperSenior/refs/heads/main/parking_data.csv"
-URL_FILTER = ""
+URL_FILTER = "https://raw.githubusercontent.com/NguyenJimmyT/TitanRush/refs/heads/main/backend/Spring%26Fall2025.csv"
 
 def filter_csv():
     response = requests.get(URL_SCRAPE)

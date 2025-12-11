@@ -12,7 +12,7 @@ from catboost import CatBoostRegressor
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-URL = "https://raw.githubusercontent.com/NguyenJimmyT/webscraperSenior/refs/heads/main/parking_data.csv"
+URL = "https://raw.githubusercontent.com/NguyenJimmyT/TitanRush/refs/heads/main/backend/forecast.json"
 app = FastAPI()
 API_KEY = os.getenv("API_KEY")
 load_dotenv()
