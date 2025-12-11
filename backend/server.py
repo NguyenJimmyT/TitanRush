@@ -47,7 +47,7 @@ async def estimate_route(req: routing):
     secs = total_sec % 60
 
     response = requests.get(URL)
-    parkingEstimate = pd.read_csv(StringIO(response.text))
+    parkingEstimate = json.loads(response.text)
 
     max_avail = {"Nutwood": 2484, "StateCollege": 1373, "EastsideNorth": 1880, "EastsideSouth": 1341, "LotA&G": 2104}
     time_parking = {"Nutwood": 20, "StateCollege": 18, "EastsideNorth": 20, "EastsideSouth": 18, "LotA&G": 14}
@@ -74,4 +74,3 @@ async def estimate_route(req: routing):
         "travel_time_sec": secs,
         "route": data
     }
-
