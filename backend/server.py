@@ -139,11 +139,11 @@ def compute_distance_and_time(points):
 @app.post("/estimate")
 async def estimate_route(req: Routing):
     location = {
-        "Nutwood": (33.87923900540178, -117.88855798831945),
-        "StateCollege": (33.883140284399985, -117.88861163250014),
-        "EastsideNorth": (33.881009299648376, -117.88180150382846),
-        "EastsideSouth": (33.880301186357116, -117.88175590627496),
-        "LotA&G": (33.88814961697887, -117.88741292165311)
+        "nutwood": (33.87923900540178, -117.88855798831945),
+        "stateCollege": (33.883140284399985, -117.88861163250014),
+        "eastsideNorth": (33.881009299648376, -117.88180150382846),
+        "eastsideSouth": (33.880301186357116, -117.88175590627496),
+        "lotAG": (33.88814961697887, -117.88741292165311)
     }
     api_req = f"https://api.tomtom.com/routing/1/calculateRoute/{req.lat},{req.long}:{location[req.dest][0]},{location[req.dest][1]}/json?traffic=true&travelMode=car&key={API_KEY}"
     response = requests.get(api_req)
@@ -157,9 +157,9 @@ async def estimate_route(req: Routing):
     secs = total_sec % 60
     response = requests.get(URL)
     parkingEstimate = json.loads(response.text)
-    max_avail = {"Nutwood": 2484, "StateCollege": 1373, "EastsideNorth": 1880, "EastsideSouth": 1341, "LotA&G": 2104}
-    time_parking = {"Nutwood": 20, "StateCollege": 18, "EastsideNorth": 20, "EastsideSouth": 18, "LotA&G": 14}
-    search_struc = {"Nutwood": "Nutwood Structure", "StateCollege": "State College Structure", "EastsideNorth": "Eastside North", "EastsideSouth": "Eastside South", "LotA&G": "LotA&G"}
+    max_avail = {"nutwood": 2484, "stateCollege": 1373, "eastsideNorth": 1880, "eastsideSouth": 1341, "lotAG": 2104}
+    time_parking = {"nutwood": 20, "stateCollege": 18, "eastsideNorth": 20, "eastsideSouth": 18, "LotAG": 14}
+    search_struc = {"nutwood": "Nutwood Structure", "stateCollege": "State College Structure", "eastsideNorth": "Eastside North", "eastsideSouth": "Eastside South", "LotAG": "LotA&G"}
     curr_pst = datetime.now(pytz.timezone('US/Pacific'))
     curr_pst += timedelta(minutes=mins)
     temp_time = curr_pst.hour * 60 + curr_pst.minute
