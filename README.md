@@ -22,7 +22,7 @@ backend python
 * Run ``npx expo install`` to install all react-native-expo files.
 * Run ``npx expo start`` to start the dev server.
 
-Once the dev server starts, it will begin automatically compiling a development build of TitanRush, and open it on your Android Studio simulator.
+Once the dev server starts, press the "a" key in the terminal running the server, and it will begin automatically compiling a development build of TitanRush, and open it on your Android Studio simulator.
 
 If there are issues with the android simulator, please follow the troubleshooting steps here:
 
