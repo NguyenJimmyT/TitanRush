@@ -1,10 +1,14 @@
 # TitanRush
 
-Tech Stack
+###Instruction to run backend
+Requirements:
+python 3.10 or higher
+``pip`` package manager
 
-frontend tailwind.css
-frame work react native 
-backend python 
+Steps:
+* git clone main
+* use the command ``pip install fastapi uvicorn requests python-dotenv pytz pydantic``
+* To run it you type into the terminal ``uvicorn backend.server:app``
 
 ## How to build
 
