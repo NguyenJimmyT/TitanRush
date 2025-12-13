@@ -86,7 +86,7 @@ def createModel():
     for day in forecast_day:
         curr = pd.Timestamp(day).tz_localize('US/Pacific')
         dow = curr.day_name()
-        time = pd.date_range("06:00", "21:00", freq="5min").time
+        time = pd.date_range("00:00", "23:55", freq="5min").time
         avg_hh = dataset.groupby(['structure', 'half_hour'])['avg_hh'].mean()
         sem_start = dataset.groupby('sem_count')['sem_start'].max().max()
         week_sem = str(max(1, ((curr.normalize() - sem_start).days // 7 + 1)))
