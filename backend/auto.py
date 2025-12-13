@@ -34,7 +34,6 @@ def createModel():
     
     dataset['structure'] = dataset['structure'].str.title()
     dataset['level'] = dataset['level'].str.title()
-
     dataset['structure'] = dataset['structure'].replace({"Lot A & G": "LotA&G", "S8 And S10": "LotA&G"})
     dataset = dataset.rename(columns={'timeScrape': 'time', 'datetime': 'date'})
     dataset = dataset[dataset['structure'] != 'Fullerton Free Church']
@@ -42,24 +41,24 @@ def createModel():
     dataset['date'] = dataset['date'].dt.tz_localize('US/Pacific')
     dataset['time'] = dataset['date'].dt.strftime('%H:%M:%S')
     dataset = dataset.drop_duplicates(subset=['date', 'level'])
+    dataset['gap'] = dataset['date'].diff().dt.days
+    dataset['sem_count'] = (dataset['gap'] > 30).cumsum()
+    dataset['sem_start'] = dataset.groupby('sem_count')['date'].transform('min').dt.normalize()
+    dataset['week_sem'] = ((dataset['date'] - dataset['sem_start']).dt.days // 7 + 1)
     dataset['available'] = dataset['available'].replace('Full', 0).astype(int)
     dataset['day_of_week'] = dataset['date'].dt.day_name()
     dataset['hour'] = dataset['date'].dt.hour
     dataset['minute'] = dataset['date'].dt.minute
     dataset['half_hour'] = dataset['hour'] + (dataset['minute'] >= 30) * 0.5
-    dataset['total'] = dataset['total'].replace(120, 220)
     dataset['current_struc_avail'] = dataset.groupby(['structure', 'date', 'time'])['available'].transform('sum')
     dataset['total_struc_avail'] = dataset.groupby(['structure', 'date', 'time'])['total'].transform('sum')
     dataset = dataset.sort_values(by=['date', 'time', 'level']).reset_index(drop=True)
     dataset['percentage_full'] = (dataset['total_struc_avail'] - dataset['current_struc_avail']) / dataset['total_struc_avail']
     dataset['month'] = dataset['date'].dt.month
-    dataset['weekYear'] = dataset['date'].dt.isocalendar().week.astype(int)
-    dataset['index'] = dataset['date'].astype('int64') // 10**9
-    dataset['lag1'] = dataset.groupby('structure')['current_struc_avail'].shift(1)
-    dataset['lag2'] = dataset.groupby('structure')['current_struc_avail'].shift(2)
     dataset['avg_hh'] = (dataset.groupby(['structure', 'half_hour'])['current_struc_avail']).transform('mean')
-    cat_feat = ['structure', 'day_of_week', 'month', 'weekYear']
-    num_feats = ['half_hour', 'index', 'lag1', 'lag2', 'avg_hh']
+    dataset['week_sem'] = dataset['week_sem'].astype(str)
+    cat_feat = ['structure', 'day_of_week', 'month', 'week_sem']
+    num_feats = ['half_hour', 'avg_hh']
     feat_cols = cat_feat + num_feats
 
     model = CatBoostRegressor(
@@ -82,16 +81,15 @@ def createModel():
 
     this_week = today - timedelta(days=today.weekday() + 1)
     forecast_day = [this_week + timedelta(days=i) for i in range(14)]
-    semester_start = dataset['date'].min().normalize()
 
     overall_forecast = {}
     for day in forecast_day:
         curr = pd.Timestamp(day).tz_localize('US/Pacific')
         dow = curr.day_name()
-        sweek = ((curr - semester_start).days // 7) + 1 
         time = pd.date_range("06:00", "21:00", freq="5min").time
         avg_hh = dataset.groupby(['structure', 'half_hour'])['avg_hh'].mean()
-
+        sem_start = dataset.groupby('sem_count')['sem_start'].max().max()
+        week_sem = str(max(1, ((curr.normalize() - sem_start).days // 7 + 1)))
         rows = []
         for i in time:
             hh = i.hour + (i.minute >= 30) * 0.5
@@ -100,13 +98,10 @@ def createModel():
                     "structure": s,
                     "day_of_week": dow,
                     "month": curr.month,
-                    "weekYear": int(curr.isocalendar().week),
+                    "week_sem": week_sem,
                     "half_hour": hh,
                     "time": i.strftime("%H:%M:%S"),
-                    "index": int(curr.value // 10**9),
-                    "avg_hh": float(avg_hh.get((s, hh), 0)),
-                    "lag1": 0,
-                    "lag2": 0
+                    "avg_hh": float(avg_hh.get((s, hh), 0))
                 })
         pred = pd.DataFrame(rows)
         pred["avail"] = model.predict(pred[feat_cols]).round().astype(int)
@@ -116,3 +111,6 @@ def createModel():
     with open("forecast.json", "w") as f:
         json.dump(overall_forecast, f, indent=4)
     return {"message": "forecast CSV created"}
+
+if __name__ == "__main__":
+    print(createModel())
