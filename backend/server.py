@@ -163,7 +163,7 @@ async def estimate_route(req: Routing):
     curr_pst = datetime.now(pytz.timezone('US/Pacific'))
     curr_pst += timedelta(minutes=mins)
     temp_time = curr_pst.hour * 60 + curr_pst.minute
-    roundfive = round(temp_time / 5) * 5
+    roundfive = (temp_time // 5) * 5
     curr_pst = curr_pst.replace(hour=roundfive//60, minute=roundfive%60, second=0, microsecond=0)
     curr_time = curr_pst.strftime('%H:%M:%S')
     curr_date = curr_pst.strftime('%Y-%m-%d')
