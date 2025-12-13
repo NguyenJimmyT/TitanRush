@@ -1,6 +1,6 @@
 # TitanRush
 
-###Instruction to run backend
+### Instruction to run backend
 Requirements:
 python 3.10 or higher
 ``pip`` package manager
